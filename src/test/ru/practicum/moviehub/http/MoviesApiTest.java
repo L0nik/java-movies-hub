@@ -5,11 +5,9 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import ru.practicum.moviehub.api.ErrorResponse;
 import ru.practicum.moviehub.model.Movie;
 import ru.practicum.moviehub.store.MoviesStore;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -17,26 +15,32 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 public class MoviesApiTest {
 
-    private static final String BASE = "http://localhost:8080"; // !!! добавьте базовую часть URL
+    private static final String BASE = "http://localhost:8080";
     private static MoviesServer server;
+    private static MoviesStore moviesStore;
     private static HttpClient client;
     private static Gson gson;
+    private static final String CT_JSON = "application/json; charset=UTF-8";
 
     @BeforeAll
     static void beforeAll() {
+        moviesStore = new MoviesStore();
         gson = new Gson();
-        server = new MoviesServer(new MoviesStore(), 8080);
+        server = new MoviesServer(moviesStore, 8080);
         client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
         server.start();
     }
 
     @BeforeEach
     void beforeEach() {
-
+        moviesStore.reset();
     }
 
     @AfterAll
@@ -58,7 +62,7 @@ public class MoviesApiTest {
 
         String contentTypeHeaderValue =
                 resp.headers().firstValue("Content-Type").orElse("");
-        assertEquals("application/json; charset=UTF-8", contentTypeHeaderValue,
+        assertEquals(CT_JSON, contentTypeHeaderValue,
                 "Content-Type должен содержать формат данных и кодировку");
 
         String body = resp.body().trim();
@@ -68,6 +72,9 @@ public class MoviesApiTest {
 
     @Test
     void getMovies_whenNotEmpty_returnsArrayOfMovies() throws Exception {
+
+        moviesStore.addMovie("test movie", 200);
+
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(BASE + "/movies")) // !!! Добавьте правильный URI
                 .GET()
@@ -80,7 +87,7 @@ public class MoviesApiTest {
 
         String contentTypeHeaderValue =
                 resp.headers().firstValue("Content-Type").orElse("");
-        assertEquals("application/json; charset=UTF-8", contentTypeHeaderValue,
+        assertEquals(CT_JSON, contentTypeHeaderValue,
                 "Content-Type должен содержать формат данных и кодировку");
 
         String body = resp.body().trim();
@@ -88,5 +95,108 @@ public class MoviesApiTest {
         List<Movie> movies = gson.fromJson(body, new ListOfMoviesTypeToken().getType());
 
         assertEquals(1, movies.size());
+    }
+
+    @Test
+    void postMovies_everythingIsOk_returnsNewMovie() throws Exception {
+        Movie movie = new Movie("test movie", 2000, 0);
+        String json = gson.toJson(movie);
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(BASE + "/movies"))
+                .header("Content-Type", CT_JSON)
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build();
+        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        assertEquals(201, resp.statusCode(), "Если все корректно, должен вернуть код 201");
+        String body = resp.body();
+        Movie newMovie = gson.fromJson(body, Movie.class);
+        assertEquals(movie, newMovie);
+    }
+
+    @Test
+    void postMovies_emptyTitle_returnsErrorResponse() throws Exception {
+        Movie movie = new Movie("", 2000, 0);
+        String json = gson.toJson(movie);
+
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(BASE + "/movies"))
+                .header("Content-Type", CT_JSON)
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build();
+        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        assertEquals(422, resp.statusCode(), "При пустом title должен вернуть 422");
+        ErrorResponse errorResponse = gson.fromJson(resp.body(), ErrorResponse.class);
+        assertEquals("Ошибка валидации", errorResponse.getError());
+        assertNotNull(errorResponse.getDetails());
+        assertTrue(errorResponse.getDetails().contains("Название не должно быть пустым"));
+
+    }
+
+    @Test
+    void postMovies_tooLongTitle_returnsErrorResponse() throws Exception {
+        Movie movie = new Movie("test movie".repeat(11), 2000, 0);
+        String json = gson.toJson(movie);
+
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(BASE + "/movies"))
+                .header("Content-Type", CT_JSON)
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build();
+        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        assertEquals(422, resp.statusCode(), "При длине title более 100 символов должен вернуть 422");
+        ErrorResponse errorResponse = gson.fromJson(resp.body(), ErrorResponse.class);
+        assertEquals("Ошибка валидации", errorResponse.getError());
+        assertNotNull(errorResponse.getDetails());
+        assertTrue(errorResponse.getDetails().contains("Длина названия превышает 100 символов"));
+    }
+
+    @Test
+    void postMovies_yearBefore1888_returnsErrorResponse() throws Exception {
+        Movie movie = new Movie("test movie", 1887, 0);
+        String json = gson.toJson(movie);
+
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(BASE + "/movies"))
+                .header("Content-Type", CT_JSON)
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build();
+        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        assertEquals(422, resp.statusCode(), "Если год меньше 1888, должен вернуть 422");
+        ErrorResponse errorResponse = gson.fromJson(resp.body(), ErrorResponse.class);
+        assertEquals("Ошибка валидации", errorResponse.getError());
+        assertNotNull(errorResponse.getDetails());
+        assertTrue(errorResponse.getDetails().contains("Год выхода фильма не может быть меньше 1888"));
+    }
+
+    @Test
+    void postMovies_yearExceedsCurrentYearBy2_returnsErrorResponse() throws Exception {
+        Movie movie = new Movie("test movie", LocalDate.now().getYear() + 2, 0);
+        String json = gson.toJson(movie);
+
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(BASE + "/movies"))
+                .header("Content-Type", CT_JSON)
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build();
+        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        assertEquals(422, resp.statusCode(), "Если год больше, чем текущий год + 1, должен вернуть 422");
+        ErrorResponse errorResponse = gson.fromJson(resp.body(), ErrorResponse.class);
+        assertEquals("Ошибка валидации", errorResponse.getError());
+        assertNotNull(errorResponse.getDetails());
+        assertTrue(errorResponse.getDetails().contains("Год выхода фильма не может больше текущего года + 1"));
+    }
+
+    @Test
+    void postMovies_wrongContentType_returnsStatus415() throws Exception {
+        Movie movie = new Movie("test movie", 2000, 0);
+        String json = gson.toJson(movie);
+
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(BASE + "/movies"))
+                .header("Content-Type", "")
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build();
+        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        assertEquals(415, resp.statusCode(), "При некорректном content-type должен вернуть 415");
     }
 }
