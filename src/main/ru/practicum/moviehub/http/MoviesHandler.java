@@ -10,8 +10,8 @@ import ru.practicum.moviehub.store.MoviesStore;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.time.Period;
 import java.util.List;
+import java.util.Optional;
 
 public class MoviesHandler extends BaseHttpHandler {
 
@@ -25,10 +25,27 @@ public class MoviesHandler extends BaseHttpHandler {
 
     @Override
     public void handle(HttpExchange ex) throws IOException {
+        String path = ex.getRequestURI().getPath();
+        String[] splitStrings = path.split("/");
         String method = ex.getRequestMethod();
         if (method.equalsIgnoreCase("GET")) {
-            String json = gson.toJson(this.moviesStore.getMovies());
-            sendJson(ex, 200, json);
+            if (splitStrings.length <= 2) {
+                String json = gson.toJson(this.moviesStore.getMovies());
+                sendJson(ex, 200, json);
+            } else {
+                String stringId = splitStrings[2];
+                try {
+                    int id = Integer.parseInt(stringId);
+                    Optional<Movie> movieOpt = this.moviesStore.getMovieById(id);
+                    if (movieOpt.isPresent()) {
+                        sendJson(ex, 200, gson.toJson(movieOpt.get()));
+                    } else {
+                        sendJson(ex, 404, "Фильм не найден");
+                    }
+                } catch (NumberFormatException e) {
+                    sendJson(ex, 400, "Некорректный ID");
+                }
+            }
         } else if (method.equalsIgnoreCase("POST")) {
             if (!requestHasCorrectContentType(ex))
                 sendJson(ex, 415, "");

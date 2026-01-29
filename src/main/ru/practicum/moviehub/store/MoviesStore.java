@@ -4,6 +4,7 @@ import ru.practicum.moviehub.model.Movie;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public class MoviesStore {
     private final List<Movie> movies;
@@ -20,6 +21,12 @@ public class MoviesStore {
 
     public List<Movie> getMovies() {
         return this.movies;
+    }
+
+    public Optional<Movie> getMovieById(int id) {
+        return this.movies.stream()
+                .filter((movie) -> movie.getId() == id)
+                .findFirst();
     }
 
     public Movie addMovie(String title, int year) {

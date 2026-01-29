@@ -48,22 +48,24 @@ public class MoviesApiTest {
         server.stop();
     }
 
+    void checkResponseContentType(HttpResponse resp) {
+        String contentTypeHeaderValue =
+                resp.headers().firstValue("Content-Type").orElse("");
+        assertEquals(CT_JSON, contentTypeHeaderValue,
+                "Content-Type должен содержать формат данных и кодировку");
+    }
+
     @Test
     void getMovies_whenEmpty_returnsEmptyArray() throws Exception {
         HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies")) // !!! Добавьте правильный URI
+                .uri(URI.create(BASE + "/movies"))
                 .GET()
                 .build();
 
         HttpResponse<String> resp =
                 client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-
+        checkResponseContentType(resp);
         assertEquals(200, resp.statusCode(), "GET /movies должен вернуть 200");
-
-        String contentTypeHeaderValue =
-                resp.headers().firstValue("Content-Type").orElse("");
-        assertEquals(CT_JSON, contentTypeHeaderValue,
-                "Content-Type должен содержать формат данных и кодировку");
 
         String body = resp.body().trim();
         assertTrue(body.startsWith("[") && body.endsWith("]"),
@@ -73,22 +75,17 @@ public class MoviesApiTest {
     @Test
     void getMovies_whenNotEmpty_returnsArrayOfMovies() throws Exception {
 
-        moviesStore.addMovie("test movie", 200);
+        moviesStore.addMovie("test movie", 2000);
 
         HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies")) // !!! Добавьте правильный URI
+                .uri(URI.create(BASE + "/movies"))
                 .GET()
                 .build();
 
         HttpResponse<String> resp =
                 client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-
+        checkResponseContentType(resp);
         assertEquals(200, resp.statusCode(), "GET /movies должен вернуть 200");
-
-        String contentTypeHeaderValue =
-                resp.headers().firstValue("Content-Type").orElse("");
-        assertEquals(CT_JSON, contentTypeHeaderValue,
-                "Content-Type должен содержать формат данных и кодировку");
 
         String body = resp.body().trim();
 
@@ -107,6 +104,7 @@ public class MoviesApiTest {
                 .POST(HttpRequest.BodyPublishers.ofString(json))
                 .build();
         HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        checkResponseContentType(resp);
         assertEquals(201, resp.statusCode(), "Если все корректно, должен вернуть код 201");
         String body = resp.body();
         Movie newMovie = gson.fromJson(body, Movie.class);
@@ -124,6 +122,7 @@ public class MoviesApiTest {
                 .POST(HttpRequest.BodyPublishers.ofString(json))
                 .build();
         HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        checkResponseContentType(resp);
         assertEquals(422, resp.statusCode(), "При пустом title должен вернуть 422");
         ErrorResponse errorResponse = gson.fromJson(resp.body(), ErrorResponse.class);
         assertEquals("Ошибка валидации", errorResponse.getError());
@@ -143,6 +142,7 @@ public class MoviesApiTest {
                 .POST(HttpRequest.BodyPublishers.ofString(json))
                 .build();
         HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        checkResponseContentType(resp);
         assertEquals(422, resp.statusCode(), "При длине title более 100 символов должен вернуть 422");
         ErrorResponse errorResponse = gson.fromJson(resp.body(), ErrorResponse.class);
         assertEquals("Ошибка валидации", errorResponse.getError());
@@ -161,6 +161,7 @@ public class MoviesApiTest {
                 .POST(HttpRequest.BodyPublishers.ofString(json))
                 .build();
         HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        checkResponseContentType(resp);
         assertEquals(422, resp.statusCode(), "Если год меньше 1888, должен вернуть 422");
         ErrorResponse errorResponse = gson.fromJson(resp.body(), ErrorResponse.class);
         assertEquals("Ошибка валидации", errorResponse.getError());
@@ -179,6 +180,7 @@ public class MoviesApiTest {
                 .POST(HttpRequest.BodyPublishers.ofString(json))
                 .build();
         HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        checkResponseContentType(resp);
         assertEquals(422, resp.statusCode(), "Если год больше, чем текущий год + 1, должен вернуть 422");
         ErrorResponse errorResponse = gson.fromJson(resp.body(), ErrorResponse.class);
         assertEquals("Ошибка валидации", errorResponse.getError());
@@ -197,6 +199,68 @@ public class MoviesApiTest {
                 .POST(HttpRequest.BodyPublishers.ofString(json))
                 .build();
         HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        checkResponseContentType(resp);
         assertEquals(415, resp.statusCode(), "При некорректном content-type должен вернуть 415");
+    }
+
+    @Test
+    void getMovieById_everythingIsOk_returnsMovie() throws Exception {
+        moviesStore.addMovie("test movie 0", 2000);
+        moviesStore.addMovie("test movie 1", 2001);
+        moviesStore.addMovie("test movie 2", 2002);
+
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(BASE + "/movies/1"))
+                .GET()
+                .build();
+
+        HttpResponse<String> resp =
+                client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        checkResponseContentType(resp);
+        assertEquals(200, resp.statusCode(), "GET /movies/1 должен вернуть 200");
+
+        String body = resp.body().trim();
+        Movie movie = gson.fromJson(body, Movie.class);
+        assertEquals(1, movie.getId());
+    }
+
+    @Test
+    void getMovieById_movieNotFound_returns404() throws Exception {
+        moviesStore.addMovie("test movie 0", 2000);
+        moviesStore.addMovie("test movie 1", 2001);
+        moviesStore.addMovie("test movie 2", 2002);
+
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(BASE + "/movies/999"))
+                .GET()
+                .build();
+
+        HttpResponse<String> resp =
+                client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        checkResponseContentType(resp);
+        assertEquals(404, resp.statusCode(), "GET /movies/999 должен вернуть 404");
+
+        String body = resp.body().trim();
+        assertEquals("Фильм не найден", body);
+    }
+
+    @Test
+    void getMovieById_idNotANumber_returns4004() throws Exception {
+        moviesStore.addMovie("test movie 0", 2000);
+        moviesStore.addMovie("test movie 1", 2001);
+        moviesStore.addMovie("test movie 2", 2002);
+
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(BASE + "/movies/abc"))
+                .GET()
+                .build();
+
+        HttpResponse<String> resp =
+                client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        checkResponseContentType(resp);
+        assertEquals(400, resp.statusCode(), "GET /movies/abc должен вернуть 400");
+
+        String body = resp.body().trim();
+        assertEquals("Некорректный ID", body);
     }
 }
