@@ -29,6 +29,16 @@ public class MoviesStore {
                 .findFirst();
     }
 
+    public boolean deleteMovieById(int id) {
+        return this.movies.removeIf((movie) -> movie.getId() == id);
+    }
+
+    public List<Movie> getMoviesByYear(int year) {
+        return this.movies.stream()
+                .filter((movie) -> movie.getYear() == year)
+                .toList();
+    }
+
     public Movie addMovie(String title, int year) {
         Movie movie = new Movie(title, year, lastId);
         lastId++;

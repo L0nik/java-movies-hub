@@ -10,6 +10,7 @@ import ru.practicum.moviehub.store.MoviesStore;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -40,10 +41,12 @@ public class MoviesHandler extends BaseHttpHandler {
                     if (movieOpt.isPresent()) {
                         sendJson(ex, 200, gson.toJson(movieOpt.get()));
                     } else {
-                        sendJson(ex, 404, "Фильм не найден");
+                        ErrorResponse errorResponse = new ErrorResponse("Фильм не найден", new ArrayList<>());
+                        sendJson(ex, 404, gson.toJson(errorResponse));
                     }
                 } catch (NumberFormatException e) {
-                    sendJson(ex, 400, "Некорректный ID");
+                    ErrorResponse errorResponse = new ErrorResponse("Некорректный ID", new ArrayList<>());
+                    sendJson(ex, 400, gson.toJson(errorResponse));
                 }
             }
         } else if (method.equalsIgnoreCase("POST")) {
@@ -59,6 +62,20 @@ public class MoviesHandler extends BaseHttpHandler {
             }
             Movie newMovie = moviesStore.addMovie(movie.getTitle(), movie.getYear());
             sendJson(ex, 201, gson.toJson(newMovie));
+        } else if (method.equalsIgnoreCase("DELETE")) {
+            String stringId = splitStrings[2];
+            try {
+                int id = Integer.parseInt(stringId);
+                if (this.moviesStore.deleteMovieById(id)) {
+                    sendNoContent(ex);
+                } else {
+                    ErrorResponse errorResponse = new ErrorResponse("Фильм не найден", new ArrayList<>());
+                    sendJson(ex, 404, gson.toJson(errorResponse));
+                }
+            } catch (NumberFormatException e) {
+                ErrorResponse errorResponse = new ErrorResponse("Некорректный ID", new ArrayList<>());
+                sendJson(ex, 400, gson.toJson(errorResponse));
+            }
         }
     }
 

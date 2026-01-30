@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -241,11 +242,12 @@ public class MoviesApiTest {
         assertEquals(404, resp.statusCode(), "GET /movies/999 должен вернуть 404");
 
         String body = resp.body().trim();
-        assertEquals("Фильм не найден", body);
+        ErrorResponse errorResponse = gson.fromJson(body, ErrorResponse.class);
+        assertEquals("Фильм не найден", errorResponse.getError());
     }
 
     @Test
-    void getMovieById_idNotANumber_returns4004() throws Exception {
+    void getMovieById_idNotANumber_returns400() throws Exception {
         moviesStore.addMovie("test movie 0", 2000);
         moviesStore.addMovie("test movie 1", 2001);
         moviesStore.addMovie("test movie 2", 2002);
@@ -261,6 +263,58 @@ public class MoviesApiTest {
         assertEquals(400, resp.statusCode(), "GET /movies/abc должен вернуть 400");
 
         String body = resp.body().trim();
-        assertEquals("Некорректный ID", body);
+        ErrorResponse errorResponse = gson.fromJson(body, ErrorResponse.class);
+        assertEquals("Некорректный ID", errorResponse.getError());
+    }
+
+    @Test
+    void deleteMovieById_movieNotFound_returns404() throws Exception {
+        HttpRequest req = HttpRequest.newBuilder()
+                .DELETE()
+                .uri(URI.create(BASE + "/movies/999"))
+                .build();
+
+        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        checkResponseContentType(resp);
+        assertEquals(404, resp.statusCode(), "DELETE movies/999 должен вернуть 404");
+        String body = resp.body().trim();
+        ErrorResponse errorResponse = gson.fromJson(body, ErrorResponse.class);
+        assertEquals("Фильм не найден", errorResponse.getError());
+    }
+
+    @Test
+    void deleteMovieById_idNotANumber_returns400() throws Exception {
+        HttpRequest req = HttpRequest.newBuilder()
+                .DELETE()
+                .uri(URI.create(BASE + "/movies/abc"))
+                .build();
+        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        checkResponseContentType(resp);
+        assertEquals(400, resp.statusCode());
+        String body = resp.body().trim();
+        ErrorResponse errorResponse = gson.fromJson(body, ErrorResponse.class);
+        assertEquals("Некорректный ID", errorResponse.getError());
+    }
+
+    @Test
+    void deleteMovieById_everythingIsOk_deletesMovie() throws Exception {
+        moviesStore.addMovie("test movie 0", 2000);
+        moviesStore.addMovie("test movie 1", 2001);
+        moviesStore.addMovie("test movie 2", 2002);
+
+        int idToDelete = 1;
+        Optional<Movie> movieBeforeDeleteOpt = moviesStore.getMovieById(idToDelete);
+        assertTrue(movieBeforeDeleteOpt.isPresent());
+
+        HttpRequest req = HttpRequest.newBuilder()
+                .DELETE()
+                .uri(URI.create(BASE + "/movies/" + idToDelete))
+                .build();
+        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        checkResponseContentType(resp);
+        assertEquals(204, resp.statusCode());
+
+        Optional<Movie> movieAfterDeleteOpt = moviesStore.getMovieById(idToDelete);
+        assertTrue(movieAfterDeleteOpt.isEmpty());
     }
 }
