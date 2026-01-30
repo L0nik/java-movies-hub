@@ -12,6 +12,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public class MoviesHandler extends BaseHttpHandler {
@@ -27,12 +28,28 @@ public class MoviesHandler extends BaseHttpHandler {
     @Override
     public void handle(HttpExchange ex) throws IOException {
         String path = ex.getRequestURI().getPath();
+        String query = ex.getRequestURI().getQuery();
+        Map<String, String> queryParams = parseQueryParams(query);
         String[] splitStrings = path.split("/");
         String method = ex.getRequestMethod();
         if (method.equalsIgnoreCase("GET")) {
             if (splitStrings.length <= 2) {
-                String json = gson.toJson(this.moviesStore.getMovies());
-                sendJson(ex, 200, json);
+                if (queryParams.isEmpty()) {
+                    String json = gson.toJson(this.moviesStore.getMovies());
+                    sendJson(ex, 200, json);
+                }
+                String yearString = queryParams.get("year");
+                try{
+                    int year = Integer.parseInt(yearString);
+                    List<Movie> movies = moviesStore.getMoviesByYear(year);
+                    sendJson(ex, 200, gson.toJson(movies));
+                } catch (NumberFormatException e) {
+                    ErrorResponse errorResponse = new ErrorResponse(
+                            "Некорректный параметр запроса — 'year'",
+                            new ArrayList<>()
+                    );
+                    sendJson(ex, 400, gson.toJson(errorResponse));
+                }
             } else {
                 String stringId = splitStrings[2];
                 try {
@@ -62,7 +79,7 @@ public class MoviesHandler extends BaseHttpHandler {
             }
             Movie newMovie = moviesStore.addMovie(movie.getTitle(), movie.getYear());
             sendJson(ex, 201, gson.toJson(newMovie));
-        } else if (method.equalsIgnoreCase("DELETE")) {
+        } else if (method.equalsIgnoreCase("DELETE") && splitStrings.length == 3) {
             String stringId = splitStrings[2];
             try {
                 int id = Integer.parseInt(stringId);
@@ -76,6 +93,8 @@ public class MoviesHandler extends BaseHttpHandler {
                 ErrorResponse errorResponse = new ErrorResponse("Некорректный ID", new ArrayList<>());
                 sendJson(ex, 400, gson.toJson(errorResponse));
             }
+        } else {
+            sendMethodNotAllowed(ex);
         }
     }
 

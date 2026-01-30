@@ -317,4 +317,63 @@ public class MoviesApiTest {
         Optional<Movie> movieAfterDeleteOpt = moviesStore.getMovieById(idToDelete);
         assertTrue(movieAfterDeleteOpt.isEmpty());
     }
+
+    @Test
+    void getMoviesByYear_yearNotANumber_returns400() throws Exception {
+        HttpRequest req = HttpRequest.newBuilder()
+                .GET()
+                .uri(URI.create(BASE + "/movies?year=abc"))
+                .build();
+
+        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        checkResponseContentType(resp);
+        assertEquals(400, resp.statusCode());
+
+        ErrorResponse errorResponse = gson.fromJson(resp.body(), ErrorResponse.class);
+        assertEquals("Некорректный параметр запроса — 'year'", errorResponse.getError());
+    }
+
+    @Test
+    void getMoviesByYear_noMoviesFound_returnsEmptyList() throws Exception {
+        HttpRequest req = HttpRequest.newBuilder()
+                .GET()
+                .uri(URI.create(BASE + "/movies?year=2000"))
+                .build();
+        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        checkResponseContentType(resp);
+        assertEquals(200, resp.statusCode());
+        List<Movie> movies = gson.fromJson(resp.body(), new ListOfMoviesTypeToken().getType());
+        assertTrue(movies.isEmpty());
+    }
+
+    @Test
+    void getMoviesByYear_everythingIsOk_returnsMoviesOfGivenYear() throws Exception {
+
+        moviesStore.addMovie("test movie 0", 2000);
+        moviesStore.addMovie("test movie 1", 2001);
+        moviesStore.addMovie("test movie 2", 2000);
+        moviesStore.addMovie("test movie 3", 2002);
+
+        HttpRequest req = HttpRequest.newBuilder()
+                .GET()
+                .uri(URI.create(BASE + "/movies?year=2000"))
+                .build();
+        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        checkResponseContentType(resp);
+        assertEquals(200, resp.statusCode());
+        List<Movie> movies = gson.fromJson(resp.body(), new ListOfMoviesTypeToken().getType());
+        assertEquals(2, movies.size());
+        assertTrue(movies.stream().allMatch((movie) -> movie.getYear() == 2000));
+    }
+
+    @Test
+    void unsupportedMethod_returns405() throws Exception {
+        HttpRequest req = HttpRequest.newBuilder()
+                .HEAD()
+                .uri(URI.create(BASE + "/movies"))
+                .build();
+        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        checkResponseContentType(resp);
+        assertEquals(405, resp.statusCode());
+    }
 }
