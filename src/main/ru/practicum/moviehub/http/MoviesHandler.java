@@ -39,7 +39,7 @@ public class MoviesHandler extends BaseHttpHandler {
                     sendJson(ex, 200, json);
                 }
                 String yearString = queryParams.get("year");
-                try{
+                try {
                     int year = Integer.parseInt(yearString);
                     List<Movie> movies = moviesStore.getMoviesByYear(year);
                     sendJson(ex, 200, gson.toJson(movies));
