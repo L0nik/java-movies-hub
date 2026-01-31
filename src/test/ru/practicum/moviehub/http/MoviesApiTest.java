@@ -205,6 +205,20 @@ public class MoviesApiTest {
     }
 
     @Test
+    void postMovies_emptyBody_returns422() throws Exception {
+        HttpRequest req = HttpRequest.newBuilder()
+                .POST(HttpRequest.BodyPublishers.ofString(""))
+                .uri(URI.create(BASE + "/movies"))
+                .header("Content-Type", CT_JSON)
+                .build();
+        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        checkResponseContentType(resp);
+        assertEquals(422, resp.statusCode());
+        ErrorResponse errorResponse = gson.fromJson(resp.body(), ErrorResponse.class);
+        assertEquals("Тело запроса не может быть пустым", errorResponse.getError());
+    }
+
+    @Test
     void getMovieById_everythingIsOk_returnsMovie() throws Exception {
         moviesStore.addMovie("test movie 0", 2000);
         moviesStore.addMovie("test movie 1", 2001);

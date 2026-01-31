@@ -18,17 +18,17 @@ public class Movie {
 
     public List<String> validate() {
         List<String> result = new ArrayList<>();
-        if (this.title.isEmpty()) {
+        if (title.isEmpty()) {
             result.add("Название не должно быть пустым");
         }
-        if (this.title.length() > 100) {
+        if (title.length() > 100) {
             result.add("Длина названия превышает 100 символов");
         }
-        if (this.year < 1888) {
+        if (year < 1888) {
             result.add("Год выхода фильма не может быть меньше 1888");
         }
         int currentYear = LocalDate.now().getYear();
-        if (this.year > currentYear + 1) {
+        if (year > currentYear + 1) {
             result.add("Год выхода фильма не может больше текущего года + 1");
         }
         return result;

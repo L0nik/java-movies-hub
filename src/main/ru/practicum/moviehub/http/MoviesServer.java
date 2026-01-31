@@ -8,10 +8,8 @@ import java.net.InetSocketAddress;
 
 public class MoviesServer {
     private final HttpServer server;
-    private final MoviesStore moviesStore;
 
     public MoviesServer(MoviesStore moviesStore, int port) {
-        this.moviesStore = moviesStore;
         try {
             server = HttpServer.create(new InetSocketAddress(port), 0);
 

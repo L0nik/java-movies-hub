@@ -2,47 +2,48 @@ package ru.practicum.moviehub.store;
 
 import ru.practicum.moviehub.model.Movie;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Optional;
 
 public class MoviesStore {
-    private final List<Movie> movies;
-    private static int lastId = 0;
+    private final Map<Integer, Movie> movies;
+    private int lastId = 0;
 
     public MoviesStore() {
-        this.movies = new ArrayList<>();
+        movies = new HashMap<>();
     }
 
     public void reset() {
-        this.movies.clear();
+        movies.clear();
         lastId = 0;
     }
 
     public List<Movie> getMovies() {
-        return this.movies;
+
+        return movies.values().stream().toList();
     }
 
     public Optional<Movie> getMovieById(int id) {
-        return this.movies.stream()
-                .filter((movie) -> movie.getId() == id)
-                .findFirst();
+        Movie movie = movies.get(id);
+        return movie == null ? Optional.empty() : Optional.of(movie);
     }
 
     public boolean deleteMovieById(int id) {
-        return this.movies.removeIf((movie) -> movie.getId() == id);
+        return movies.remove(id) != null;
     }
 
     public List<Movie> getMoviesByYear(int year) {
-        return this.movies.stream()
+        return movies.values().stream()
                 .filter((movie) -> movie.getYear() == year)
                 .toList();
     }
 
     public Movie addMovie(String title, int year) {
         Movie movie = new Movie(title, year, lastId);
+        movies.put(lastId, movie);
         lastId++;
-        this.movies.add(movie);
         return movie;
     }
 }
